@@ -3,6 +3,10 @@
 ## 環境
 
 ```
+Task version: v3.27.1 (h1:cftsoOqUo7/pCdtO7fDa4HreXKDvbrRhfhhha8bH9xc=)
+```
+
+```
 ansible [core 2.16.2]
   config file = None
   configured module search path = ['/home/cp20/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
