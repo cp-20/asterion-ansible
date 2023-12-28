@@ -1,0 +1,25 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  ping:
+    cmds:
+      - ansible-runner run . -p ping.yaml -i inventory/hosts.yaml
+    desc: Ping Playbook を実行する
+  deploy:
+    cmds:
+      - ansible-runner run . -p plexus.yaml -i inventory/hosts.yaml
+    desc: デプロイ
+  edit-vault:
+    cmds:
+      - ansible-vault edit ./inventory/group_vars/all/vault.yaml --vault-password-file ./project/vault-password
+    desc: Vaultの編集 (要パスワード)
+  start-playground:
+    cmds:
+      - docker run -d --name=ansible-playground --privileged python:3 tail -f /dev/null
+    desc: playground (on Docker) を起動する
+  stop-playground:
+    cmds:
+      - docker rm -f ansible-playground
+    desc: playground (on Docker) を停止する

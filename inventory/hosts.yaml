@@ -1,0 +1,9 @@
+---
+all:
+  hosts:
+    # ansible-playground:
+    #   ansible_connection: docker
+    plexus:
+      ansible_connection: ssh
+      ansible_host: server.cp20.dev
+      ansible_user: cp20

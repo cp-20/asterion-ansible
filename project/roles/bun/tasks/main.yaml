@@ -1,0 +1,6 @@
+---
+- name: Install Bun
+  npm:
+    name: bun
+    global: yes
+    state: present

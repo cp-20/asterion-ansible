@@ -1,0 +1,38 @@
+---
+- name: Include variables
+  include_vars:
+    file: 'vars/{{stage}}.yaml'
+
+- name: Ensure the repository cloned
+  git:
+    repo: 'https://github.com/cp-20/read-stack'
+    dest: '/srv/read-stack'
+    clone: yes
+    update: yes
+    version: replace-server-with-hono
+
+- name: Install dependencies
+  community.general.pnpm:
+    path: '/srv/read-stack'
+
+- name: Copy the .env file
+  template:
+    src: 'env.j2'
+    dest: '/srv/read-stack/.env'
+
+- name: Start supabase
+  shell: pnpm supabase start-supabase
+  args:
+    chdir: '/srv/read-stack'
+  when: stage == 'dev'
+
+- name: Register the service for the application
+  copy:
+    src: 'read-stack.service'
+    dest: '/etc/systemd/system/read-stack.service'
+
+- name: Start the application
+  systemd:
+    name: 'read-stack'
+    state: started
+    enabled: yes

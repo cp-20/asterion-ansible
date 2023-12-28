@@ -1,0 +1,11 @@
+---
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+    state: restarted
+
+- name: Start application
+  systemd:
+    name: 'read-stack'
+    state: started
+    enabled: yes

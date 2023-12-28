@@ -1,0 +1,6 @@
+---
+- name: Install pnpm
+  npm:
+    name: pnpm
+    global: yes
+    state: present

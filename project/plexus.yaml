@@ -1,0 +1,11 @@
+---
+- hosts: all
+  gather_facts: true
+  become: true
+
+  roles:
+    - docker
+    - nodejs
+    - pnpm
+    - bun
+    - read-stack

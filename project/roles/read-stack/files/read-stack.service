@@ -1,0 +1,11 @@
+[Unit]
+Description=Read Stack application
+
+[Service]
+WorkingDirectory=/srv/read-stack
+ExecStart=pnpm start
+PrivateTmp=true
+Restart=always
+
+[Install]
+WantedBy=default.target
