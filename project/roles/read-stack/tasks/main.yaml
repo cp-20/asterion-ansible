@@ -9,11 +9,7 @@
     dest: '/srv/read-stack'
     clone: yes
     update: yes
-    version: replace-server-with-hono
-
-- name: Install dependencies
-  community.general.pnpm:
-    path: '/srv/read-stack'
+    force: yes
 
 - name: Copy the .env file
   template:
@@ -26,13 +22,7 @@
     chdir: '/srv/read-stack'
   when: stage == 'dev'
 
-- name: Register the service for the application
-  copy:
-    src: 'read-stack.service'
-    dest: '/etc/systemd/system/read-stack.service'
-
 - name: Start the application
-  systemd:
-    name: 'read-stack'
-    state: started
-    enabled: yes
+  shell: docker compose --env-file=.env up --build -d
+  args:
+    chdir: '/srv/read-stack'
