@@ -7,6 +7,7 @@
   git:
     repo: 'https://github.com/cp-20/read-stack'
     dest: '/srv/read-stack'
+    version: main
     clone: yes
     update: yes
     force: yes
