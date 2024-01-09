@@ -15,6 +15,10 @@ tasks:
     cmds:
       - ansible-vault edit ./inventory/group_vars/all/vault.yaml --vault-password-file ./project/vault-password
     desc: Vaultの編集 (要パスワード)
+  install-collections:
+    cmds:
+      - ansible-galaxy collection install -r requirements.yaml
+    desc: Collections をインストールする
   start-playground:
     cmds:
       - docker run -d --name=ansible-playground --privileged python:3 tail -f /dev/null

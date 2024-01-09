@@ -1,0 +1,48 @@
+---
+# なぜかエラーが出るのでコメントアウトしとく
+# - name: Instal required pip packages
+#   pip:
+#     name: requests
+
+# - name: Create a Grafana Cloud stack
+#   grafana.grafana.cloud_stack:
+#     name: asterion
+#     stack_slug: asterion
+#     cloud_api_key: '{{ grafana_cloud_api_key }}'
+#     org_slug: cp20
+#     state: present
+
+- name: Install Grafana Agent gpg key
+  get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.asc
+    mode: '0755'
+    force: true
+
+- name: Add Grafana apt repositories
+  apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main
+    state: present
+  notify:
+    - apt_update
+
+- name: Install Grafana Agent
+  apt:
+    name:
+      - grafana-agent
+    state: present
+
+- name: Ensure Grafana Agent is enabled on boot
+  systemd:
+    daemon_reload: true
+    name: grafana-agent
+    enabled: true
+
+- name: Install Grafana Agent config
+  template:
+    src: grafana-agent.yaml.j2
+    dest: /etc/grafana-agent.yaml
+    owner: root
+    mode: 0640
+  notify:
+    - Restart grafana-agent

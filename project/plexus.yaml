@@ -6,7 +6,9 @@
   roles:
     - common
     - docker
+    - python
     - nodejs
     - pnpm
     - bun
+    - grafana
     - read-stack
