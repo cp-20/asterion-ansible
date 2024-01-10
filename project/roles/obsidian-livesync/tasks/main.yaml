@@ -1,0 +1,20 @@
+---
+- name: Make service directory
+  file:
+    path: /srv/obsidian-livesync
+    state: directory
+
+- name: Copy local.ini
+  copy:
+    src: local.ini
+    dest: /srv/obsidian-livesync/local.ini
+
+- name: Copy docker-compose.yaml
+  template:
+    src: docker-compose.yaml.j2
+    dest: /srv/obsidian-livesync/docker-compose.yaml
+
+- name: Start service
+  shell: docker compose up --build -d
+  args:
+    chdir: /srv/obsidian-livesync
