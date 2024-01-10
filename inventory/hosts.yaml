@@ -5,5 +5,5 @@ all:
     #   ansible_connection: docker
     plexus:
       ansible_connection: ssh
-      ansible_host: server.cp20.dev
+      ansible_host: plexus
       ansible_user: cp20
