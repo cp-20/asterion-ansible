@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  bot:
+    container_name: bot
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    restart: always
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TRAQ_BOT_ID: ${TRAQ_BOT_ID}
+      TRAQ_ACCESS_TOKEN: ${TRAQ_ACCESS_TOKEN}
+    logging:
+      driver: loki
+      options:
+        loki-url: 'https://{{ grafana_loki_username }}:{{ grafana_cloud_api_key }}@{{ grafana_loki_domain }}/loki/api/v1/push'
+        loki-external-labels: 'job=bot-yumi'
+        mode: 'non-blocking'
+        max-size: '20m'
+        max-file: '5'

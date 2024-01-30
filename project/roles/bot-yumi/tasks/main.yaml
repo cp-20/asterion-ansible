@@ -1,0 +1,24 @@
+---
+- name: Ensure the repository cloned
+  git:
+    repo: 'https://github.com/cp-20/bot-yumi'
+    dest: '/srv/bot-yumi'
+    version: main
+    clone: yes
+    update: yes
+    force: yes
+
+- name: Copy the .env file
+  template:
+    src: 'env.j2'
+    dest: '/srv/bot-yumi/.env'
+
+- name: Copy the docker-compose file
+  template:
+    src: 'docker-compose.yaml.j2'
+    dest: '/srv/bot-yumi/docker-compose.yaml'
+
+- name: Run the bot
+  shell: docker compose -f docker-compose.yaml up --build -d
+  args:
+    chdir: '/srv/bot-yumi'
