@@ -1,0 +1,30 @@
+---
+- name: Ensure the repository cloned
+  git:
+    repo: 'https://github.com/cp-20/traQing'
+    dest: '/srv/traq-ing'
+    version: main
+    clone: yes
+    update: yes
+    force: yes
+
+- name: Copy the .env file
+  template:
+    src: 'env.j2'
+    dest: '/srv/traq-ing/.env'
+
+- name: Copy the docker-compose-deploy.yaml file
+  template:
+    src: 'docker-compose-deploy.yaml.j2'
+    dest: '/srv/traq-ing/docker-compose-deploy.yaml'
+
+- name: Install Loki driver plugin
+  community.docker.docker_plugin:
+    plugin_name: grafana/loki-docker-driver:2.9.1
+    alias: loki
+    state: enable
+
+- name: Start the application
+  shell: docker compose -f docker-compose-deploy.yaml up --build -d
+  args:
+    chdir: '/srv/traq-ing'

@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  traq-ing:
+    container_name: traq-ing
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 4173:9000
+    env_file:
+      - .env
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ./traq.db:/app/traq.db
+    logging:
+      driver: loki
+      options:
+        loki-url: 'https://{{ grafana_loki_username }}:{{ grafana_cloud_api_key }}@{{ grafana_loki_domain }}/loki/api/v1/push'
+        loki-external-labels: "job=traq-ing"
+        mode: "non-blocking"
+        max-size: "20m"
+        max-file: "5"
