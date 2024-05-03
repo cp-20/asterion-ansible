@@ -2,13 +2,12 @@ version: '3'
 
 services:
   traq-ing:
-    container_name: traq-ing
     build:
       context: .
       dockerfile: Dockerfile
     restart: always
     ports:
-      - 4173:9000
+      - 9000:4173
     env_file:
       - .env
     extra_hosts:
