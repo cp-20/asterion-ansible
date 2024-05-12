@@ -1,0 +1,24 @@
+---
+- name: Set up directory
+  file:
+    path: '/srv/wiki-js'
+    state: directory
+
+- name: Check .db-secret exists
+  stat:
+    path: /srv/wiki-js/.db-secret
+  register: wiki_js_db_secret
+
+- name: Create DB Secret
+  shell: openssl rand -base64 32 > /srv/wiki-js/.db-secret
+  when: not wiki_js_db_secret.stat.exists
+
+- name: Copy docker-compose.yaml
+  copy:
+    src: docker-compose.yaml
+    dest: /srv/wiki-js/docker-compose.yaml
+
+- name: Start WikiJS
+  shell: docker compose up -d --build
+  args:
+    chdir: /srv/wiki-js

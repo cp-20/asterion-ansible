@@ -1,5 +1,15 @@
 # Asterion Ansible
 
+## 使用しているポート
+
+- 3000 (read-stack)
+- 4173 (read-stack)
+- 5984 (obsidian-livesync)
+- 8000 (read-stack)
+- 9000 (traq-ing)
+- 10000 (wiki-js)
+- 10443 (wiki-js)
+
 ## 環境
 
 ```
