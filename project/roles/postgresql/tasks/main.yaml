@@ -1,0 +1,25 @@
+---
+- name: Install PostgreSQL
+  apt:
+    name: postgresql
+    state: present
+
+- name: Setup the config
+  copy:
+    src: '{{item}}'
+    dest: /etc/postgresql/14/main/
+  with_fileglob:
+    - '*.conf'
+  notify:
+    - Restart postgresql
+
+- name: Ensure the service is running
+  systemd:
+    daemon_reload: true
+    name: postgresql
+    enabled: true
+
+- name: Set root password
+  shell: sudo -u postgres psql -c "ALTER USER postgres with encrypted password '$env';"
+  environment:
+    password: '{{ postgresql_password }}'

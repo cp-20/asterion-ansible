@@ -1,4 +1,15 @@
 ---
+- name: Setup database
+  shell: |
+    sudo -u postgres psql -c "CREATE DATABASE $db_database;"
+    sudo -u postgres psql -c "CREATE USER $db_user;"
+    sudo -u postgres psql -c "ALTER USER $db_user WITH ENCRYPTED PASSWORD '$db_password';"
+    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $db_database TO $db_user;"
+  environment:
+    db_database: '{{ traq_ing_db_name }}'
+    db_user: '{{ traq_ing_db_user }}'
+    db_password: '{{ traq_ing_db_password }}'
+
 - name: Ensure the repository cloned
   git:
     repo: 'https://github.com/cp-20/traQing'
@@ -7,11 +18,6 @@
     clone: yes
     update: yes
     force: yes
-
-- name: Copy the .env file
-  template:
-    src: 'env.j2'
-    dest: '/srv/traq-ing/.env'
 
 - name: Copy the docker-compose-deploy.yaml file
   template:
