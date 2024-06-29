@@ -12,7 +12,7 @@
 #     org_slug: cp20
 #     state: present
 
-- name: Install Grafana Agent gpg key
+- name: Install Grafana gpg key
   get_url:
     url: https://apt.grafana.com/gpg.key
     dest: /etc/apt/keyrings/grafana.asc
@@ -26,23 +26,30 @@
   notify:
     - apt_update
 
-- name: Install Grafana Agent
+- name: Install Grafana Alloy
   apt:
     name:
-      - grafana-agent
+      - alloy
     state: present
 
-- name: Ensure Grafana Agent is enabled on boot
+- name: Ensure Grafana Alloy is enabled on boot
   systemd:
     daemon_reload: true
-    name: grafana-agent
+    name: alloy
     enabled: true
 
-- name: Install Grafana Agent config
+- name: Setup postgres_exporter
+  shell: |
+    sudo -u postgres psql -c "CREATE USER postgres_exporter WITH PASSWORD '$password';"
+    sudo -u postgres psql -c "GRANT pg_monitor TO postgres_exporter;"
+  environment:
+    password: '{{ postgres_exporter_password }}'
+
+- name: Install Grafana Alloy config
   template:
-    src: grafana-agent.yaml.j2
-    dest: /etc/grafana-agent.yaml
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
     owner: root
-    mode: 0640
+    mode: '0777'
   notify:
-    - Restart grafana-agent
+    - Restart Grafana Alloy

@@ -4,15 +4,15 @@
   become: true
 
   roles:
-    - common
-    - docker
-    - postgresql
-    - python
-    - nodejs
-    - pnpm
-    - bun
+    # - common
+    # - docker
+    # - postgresql
+    # - python
+    # - nodejs
+    # - pnpm
+    # - bun
     - grafana
-    - read-stack
-    - obsidian-livesync
-    - bot-yumi
-    - traq-ing
+    # - read-stack
+    # - obsidian-livesync
+    # - bot-yumi
+    # - traq-ing

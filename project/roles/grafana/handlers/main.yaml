@@ -1,7 +1,7 @@
 ---
-- name: Restart grafana-agent
+- name: Restart Grafana Alloy
   systemd:
     daemon_reload: true
-    name: grafana-agent
+    name: alloy
     state: restarted
     enabled: true

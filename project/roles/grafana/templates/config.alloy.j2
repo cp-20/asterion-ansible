@@ -1,0 +1,138 @@
+prometheus.exporter.self "alloy_check" {}
+
+discovery.relabel "alloy_check" {
+  targets = prometheus.exporter.self.alloy_check.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = constants.hostname
+  }
+
+  rule {
+    target_label = "alloy_hostname"
+    replacement  = constants.hostname
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/alloy-check"
+  }
+}
+
+prometheus.scrape "alloy_check" {
+  targets    = discovery.relabel.alloy_check.output
+  forward_to = [prometheus.relabel.alloy_check.receiver]
+
+  scrape_interval = "60s"
+}
+
+prometheus.relabel "alloy_check" {
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "(prometheus_target_sync_length_seconds_sum|prometheus_target_scrapes_.*|prometheus_target_interval.*|prometheus_sd_discovered_targets|alloy_build.*|prometheus_remote_write_wal_samples_appended_total|process_start_time_seconds)"
+    action        = "keep"
+  }
+}
+
+prometheus.remote_write "metrics_service" {
+  endpoint {
+    url = "{{ grafana_prometheus_url }}"
+
+    basic_auth {
+      username = "{{ grafana_prometheus_username }}"
+      password = "{{ grafana_cloud_api_key }}"
+    }
+  }
+}
+
+loki.write "grafana_cloud_loki" {
+  endpoint {
+    url = "{{ grafana_loki_url }}"
+
+    basic_auth {
+      username = "{{ grafana_loki_username }}"
+      password = "{{ grafana_cloud_api_key }}"
+    }
+  }
+}
+
+prometheus.remote_write "prometheus_service" {
+  endpoint {
+    url = "{{ grafana_prometheus_url }}"
+
+    basic_auth {
+      username = "{{ grafana_prometheus_username }}"
+      password = "{{ grafana_prometheus_password }}"
+    }
+  }
+}
+
+prometheus.scrape "metrics_service_read_stack_prometheus" {
+  targets = [{
+    __address__ = "localhost:8000",
+  }]
+  forward_to      = [prometheus.remote_write.prometheus_service.receiver]
+  job_name        = "read-stack-prometheus"
+  scrape_interval = "15s"
+  metrics_path    = "/api/v1/metrics"
+}
+
+prometheus.scrape "metrics_service_read_stack_supabase" {
+  targets = [{
+    __address__ = "{{ read_stack_supabase_id }}.supabase.co",
+  }]
+  forward_to      = [prometheus.remote_write.prometheus_service.receiver]
+  job_name        = "read-stack-supabase"
+  scrape_interval = "15s"
+  metrics_path    = "/customer/v1/privileged/metrics"
+
+  basic_auth {
+    username = "service_role"
+    password = "{{ read_stack_supabase_service_role_key }}"
+  }
+}
+
+prometheus.scrape "matrics_node_exporter" {
+  targets    = prometheus.exporter.unix.node_exporter.targets
+  forward_to = [prometheus.remote_write.prometheus_service.receiver]
+}
+
+prometheus.exporter.unix "node_exporter" {
+}
+
+prometheus.exporter.postgres "integrations_postgres_exporter" {
+    data_source_names = ["postgresql://postgres_exporter:{{postgres_exporter_password}}@localhost:5432/postgres"]
+}
+discovery.relabel "integrations_postgres_exporter" {
+    targets = prometheus.exporter.postgres.integrations_postgres_exporter.targets
+
+    rule {
+        target_label = "instance"
+        replacement  = constants.hostname
+    }
+    rule {
+        target_label = "job"
+        replacement  = "integrations/postgres_exporter"
+    }
+}
+prometheus.scrape "integrations_postgres_exporter" {
+    targets    = discovery.relabel.integrations_postgres_exporter.output
+    forward_to = [prometheus.remote_write.prometheus_service.receiver]
+    job_name   = "integrations/postgres_exporter"
+}
+
+// local.file_match "logs_integrations_postgres_exporter" {
+//     path_targets = [{
+//         __address__ = "localhost",
+//         __path__    = "/var/log/postgresql/postgresql-14-main.log",
+//         instance    = constants.hostname,
+//         job         = "integrations/postgres_exporter",
+//     }]
+// }
+// loki.source.file "logs_integrations_postgres_exporter" {
+//     targets    = local.file_match.logs_integrations_postgres_exporter.targets
+//     forward_to = [loki.write.grafana_cloud_loki.receiver]
+// }
+

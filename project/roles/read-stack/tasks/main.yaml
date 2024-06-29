@@ -38,8 +38,8 @@
   shell: pnpm migration
   args:
     chdir: '/srv/read-stack'
-
-- name: Start the application
-  shell: docker compose --env-file=.env -f docker-compose-deploy.yaml up --build -d
-  args:
-    chdir: '/srv/read-stack'
+#
+# - name: Start the application
+#   shell: docker compose --env-file=.env -f docker-compose-deploy.yaml up --build -d
+#   args:
+#     chdir: '/srv/read-stack'
