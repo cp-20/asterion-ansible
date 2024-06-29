@@ -102,6 +102,21 @@ prometheus.scrape "matrics_node_exporter" {
 prometheus.exporter.unix "node_exporter" {
 }
 
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "read"  {
+  forward_to    = [loki.write.grafana_cloud_loki.receiver]
+  relabel_rules = loki.relabel.journal.rules
+  labels        = {component = "loki.source.journal"}
+}
+
 prometheus.exporter.postgres "integrations_postgres_exporter" {
     data_source_names = ["postgresql://postgres_exporter:{{postgres_exporter_password}}@localhost:5432/postgres"]
 }
@@ -123,16 +138,16 @@ prometheus.scrape "integrations_postgres_exporter" {
     job_name   = "integrations/postgres_exporter"
 }
 
-// local.file_match "logs_integrations_postgres_exporter" {
-//     path_targets = [{
-//         __address__ = "localhost",
-//         __path__    = "/var/log/postgresql/postgresql-14-main.log",
-//         instance    = constants.hostname,
-//         job         = "integrations/postgres_exporter",
-//     }]
-// }
-// loki.source.file "logs_integrations_postgres_exporter" {
-//     targets    = local.file_match.logs_integrations_postgres_exporter.targets
-//     forward_to = [loki.write.grafana_cloud_loki.receiver]
-// }
+local.file_match "logs_integrations_postgres_exporter" {
+    path_targets = [{
+        __address__ = "localhost",
+        __path__    = "/var/log/postgresql/postgresql-14-main.log",
+        instance    = constants.hostname,
+        job         = "integrations/postgres_exporter",
+    }]
+}
+loki.source.file "logs_integrations_postgres_exporter" {
+    targets    = local.file_match.logs_integrations_postgres_exporter.targets
+    forward_to = [loki.write.grafana_cloud_loki.receiver]
+}
 
