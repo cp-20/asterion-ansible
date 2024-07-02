@@ -8,7 +8,7 @@
     - docker
     - postgresql
     - python
-    - nodejs
+    # - nodejs
     - pnpm
     - bun
     - grafana
