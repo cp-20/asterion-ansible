@@ -16,7 +16,7 @@
 - name: Ensure the service is running
   systemd:
     daemon_reload: true
-    name: postgresql
+    name: postgresql@14-main
     enabled: true
 
 - name: Set root password
