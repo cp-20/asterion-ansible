@@ -14,7 +14,7 @@ services:
     build:
       context: .
       dockerfile: server.Dockerfile
-    restart: always
+    restart: on-failure:10
     networks:
       - traq-ing-network
     extra_hosts:
