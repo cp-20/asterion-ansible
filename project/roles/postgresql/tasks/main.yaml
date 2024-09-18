@@ -20,6 +20,6 @@
     enabled: true
 
 - name: Set root password
-  shell: sudo -u postgres psql -c "ALTER USER postgres with encrypted password '$env';"
+  shell: sudo -u postgres psql -c "ALTER USER postgres with encrypted password '$password';"
   environment:
     password: '{{ postgresql_password }}'
