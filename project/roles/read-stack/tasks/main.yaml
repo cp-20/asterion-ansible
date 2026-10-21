@@ -1,45 +1,24 @@
 ---
-- name: Include variables
-  include_vars:
-    file: 'vars/{{stage}}.yaml'
+- name: Create service-ended page directory
+  ansible.builtin.file:
+    path: /srv/read-stack-retired
+    state: directory
+    mode: '0755'
 
-- name: Ensure the repository cloned
-  git:
-    repo: 'https://github.com/cp-20/read-stack'
-    dest: '/srv/read-stack'
-    version: main
-    clone: yes
-    update: yes
-    force: yes
+- name: Copy service-ended page and configuration
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/srv/read-stack-retired/{{ item }}'
+    mode: '0644'
+  loop:
+    - index.html
+    - default.conf
+    - compose.yaml
+  register: read_stack_static_files
 
-- name: Copy the .env file
-  template:
-    src: 'env.j2'
-    dest: '/srv/read-stack/.env'
-
-- name: Copy the docker-compose-deploy.yaml file
-  template:
-    src: 'docker-compose-deploy.yaml.j2'
-    dest: '/srv/read-stack/docker-compose-deploy.yaml'
-
-- name: Start supabase
-  shell: pnpm supabase start-supabase
-  args:
-    chdir: '/srv/read-stack'
-  when: stage == 'dev'
-
-- name: Install Loki driver plugin
-  community.docker.docker_plugin:
-    plugin_name: grafana/loki-docker-driver:2.9.1
-    alias: loki
-    state: enable
-
-- name: Migrate Database
-  shell: pnpm migration
-  args:
-    chdir: '/srv/read-stack'
-#
-# - name: Start the application
-#   shell: docker compose --env-file=.env -f docker-compose-deploy.yaml up --build -d
-#   args:
-#     chdir: '/srv/read-stack'
+- name: Serve the service-ended page
+  community.docker.docker_compose_v2:
+    project_src: /srv/read-stack-retired
+    project_name: read-stack-retired
+    state: present
+    recreate: "{{ 'always' if read_stack_static_files.changed else 'auto' }}"

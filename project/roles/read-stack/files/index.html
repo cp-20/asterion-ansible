@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ReadStack — サービス終了のお知らせ</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 24px; background: #f5f7fa; color: #1d2939; }
+      main { width: 100%; max-width: 580px; padding: clamp(24px, 6vw, 48px); border: 1px solid #dce2eb; border-radius: 16px; background: #fff; }
+      h1 { margin: 0 0 24px; font-size: clamp(24px, 5vw, 32px); line-height: 1.5; }
+      p { margin: 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+      a { color: #2459b3; text-underline-offset: 3px; }
+      a:focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #111827; color: #e5eaf2; }
+        main { background: #1d2939; border-color: #364152; }
+        a { color: #a9c9ff; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ReadStack はサービスを終了しました。</h1>
+      <p>保存データのエクスポートをご希望の場合は、<a href="mailto:contact@cp20.dev">contact@cp20.dev</a> まで個別にご連絡ください。</p>
+    </main>
+  </body>
+</html>
