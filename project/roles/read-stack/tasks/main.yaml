@@ -1,158 +1,24 @@
 ---
-# Inspect all old containers before stopping any; the old names are generic.
-- name: Inspect legacy ReadStack containers
-  community.docker.docker_container_info:
-    name: '{{ item }}'
-  loop:
-    - web
-    - server
-    - swagger-viewer
-  register: read_stack_legacy
-  no_log: true
-
-- name: Verify legacy container ownership
-  ansible.builtin.assert:
-    that:
-      - item.container.Config.Labels['com.docker.compose.project.working_dir'] | default('') == '/srv/read-stack'
-      - item.container.Config.Labels['com.docker.compose.project'] | default('') == 'read-stack'
-      - item.container.Config.Labels['com.docker.compose.service'] | default('') == item.item
-    fail_msg: 'A legacy container name belongs to an unrecognized deployment; inspect ownership before continuing.'
-  loop: '{{ read_stack_legacy.results }}'
-  when: item.exists
-  no_log: true
-
-- name: Find all containers from the legacy ReadStack Compose directory
-  community.docker.docker_host_info:
-    containers: true
-    containers_all: true
-    verbose_output: true
-    containers_filters:
-      label:
-        - com.docker.compose.project.working_dir=/srv/read-stack
-        - com.docker.compose.project=read-stack
-  register: read_stack_containers
-  no_log: true
-
-- name: Require every discovered service to be a known ReadStack application service
-  ansible.builtin.assert:
-    that:
-      - item.Labels['com.docker.compose.service'] | default('') in ['web', 'server', 'swagger-viewer']
-    fail_msg: 'An unrecognized service exists in the ReadStack project; classify it before retiring applications. Do not stop a database.'
-  loop: '{{ read_stack_containers.containers }}'
-  no_log: true
-
-- name: Inspect the old Compose entrypoint
-  ansible.builtin.stat:
-    path: /srv/read-stack/docker-compose-deploy.yaml
-  register: read_stack_old_compose
-
-- name: Require a regular old Compose file
-  ansible.builtin.assert:
-    that:
-      - read_stack_old_compose.stat.isreg | default(false)
-    fail_msg: 'Inspect the old Compose path before replacing a non-regular file.'
-  when: read_stack_old_compose.stat.exists
-
-- name: Inspect any existing retirement project containers
-  community.docker.docker_host_info:
-    containers: true
-    containers_all: true
-    verbose_output: true
-    containers_filters:
-      label: com.docker.compose.project=read-stack-retired
-  register: read_stack_existing_retired
-  no_log: true
-
-- name: Verify retirement project ownership before staging files
-  ansible.builtin.assert:
-    that:
-      - item.Labels['com.docker.compose.project.working_dir'] | default('') == '/srv/read-stack-retired'
-      - item.Labels['com.docker.compose.service'] | default('') == 'retired'
-    fail_msg: 'The retirement project name belongs to another deployment; inspect ownership before continuing.'
-  loop: '{{ read_stack_existing_retired.containers }}'
-  no_log: true
-
-- name: Create retirement configuration directory
+- name: Create service-ended page directory
   ansible.builtin.file:
     path: /srv/read-stack-retired
     state: directory
     mode: '0755'
 
-- name: Copy static retirement assets
+- name: Copy service-ended page and configuration
   ansible.builtin.copy:
     src: '{{ item }}'
     dest: '/srv/read-stack-retired/{{ item }}'
-    backup: true
     mode: '0644'
   loop:
     - index.html
     - default.conf
-  register: read_stack_retirement_assets
+    - compose.yaml
+  register: read_stack_static_files
 
-- name: Install retirement Compose definition
-  ansible.builtin.template:
-    src: docker-compose-deploy.yaml.j2
-    dest: /srv/read-stack-retired/compose.yaml
-    backup: true
-    mode: '0644'
-  register: read_stack_retirement_compose
-
-- name: Validate retirement Compose configuration
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - --project-directory
-      - /srv/read-stack-retired
-      - --project-name
-      - read-stack-retired
-      - config
-      - --quiet
-  changed_when: false
-
-- name: Fetch the static image before stopping the old applications
-  community.docker.docker_compose_v2_pull:
-    project_src: /srv/read-stack-retired
-    project_name: read-stack-retired
-    policy: missing
-
-- name: Validate Nginx without publishing service ports
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - --project-directory
-      - /srv/read-stack-retired
-      - --project-name
-      - read-stack-retired
-      - run
-      - --rm
-      - --no-deps
-      - retired
-      - nginx
-      - -t
-  changed_when: false
-
-- name: Stop all known application containers including replicas and disable automatic restart
-  community.docker.docker_container:
-    name: "{{ item.Names[0] | regex_replace('^/', '') }}"
-    state: stopped
-    restart_policy: 'no'
-  loop: '{{ read_stack_containers.containers }}'
-  no_log: true
-
-- name: Disable the old Compose entrypoint while keeping a backup
-  ansible.builtin.copy:
-    dest: /srv/read-stack/docker-compose-deploy.yaml
-    content: "# ReadStack retired. See /srv/read-stack-retired/compose.yaml.\nservices: {}\n"
-    backup: true
-    mode: '0644'
-  when: read_stack_old_compose.stat.exists
-  no_log: true
-
-- name: Start static retirement service
+- name: Serve the service-ended page
   community.docker.docker_compose_v2:
     project_src: /srv/read-stack-retired
     project_name: read-stack-retired
     state: present
-    recreate: "{{ 'always' if read_stack_retirement_assets.changed or read_stack_retirement_compose.changed else 'auto' }}"
+    recreate: "{{ 'always' if read_stack_static_files.changed else 'auto' }}"

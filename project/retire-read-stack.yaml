@@ -1,6 +1,6 @@
 ---
 # Use this playbook alone to avoid changing unrelated roles in plexus.yaml.
-- name: Retire ReadStack while preserving its data
+- name: Serve the ReadStack service-ended page
   hosts: plexus
   gather_facts: false
   become: true
