@@ -1,0 +1,8 @@
+---
+# Use this playbook alone to avoid changing unrelated roles in plexus.yaml.
+- name: Retire ReadStack while preserving its data
+  hosts: plexus
+  gather_facts: false
+  become: true
+  roles:
+    - read-stack

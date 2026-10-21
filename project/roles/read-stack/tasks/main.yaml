@@ -1,45 +1,86 @@
 ---
-- name: Include variables
-  include_vars:
-    file: 'vars/{{stage}}.yaml'
+# Inspect all old containers before stopping any; the old names are generic.
+- name: Inspect legacy ReadStack containers
+  community.docker.docker_container_info:
+    name: '{{ item }}'
+  loop:
+    - web
+    - server
+    - swagger-viewer
+  register: read_stack_legacy
+  no_log: true
 
-- name: Ensure the repository cloned
-  git:
-    repo: 'https://github.com/cp-20/read-stack'
-    dest: '/srv/read-stack'
-    version: main
-    clone: yes
-    update: yes
-    force: yes
+- name: Verify legacy container ownership
+  ansible.builtin.assert:
+    that:
+      - item.container.Config.Labels['com.docker.compose.project.working_dir'] | default('') == '/srv/read-stack'
+      - item.container.Config.Labels['com.docker.compose.service'] | default('') == item.item
+    fail_msg: 'A legacy container name belongs to an unrecognized deployment; inspect ownership before continuing.'
+  loop: '{{ read_stack_legacy.results }}'
+  when: item.exists
+  no_log: true
 
-- name: Copy the .env file
-  template:
-    src: 'env.j2'
-    dest: '/srv/read-stack/.env'
+- name: Find all containers from the legacy ReadStack Compose directory
+  community.docker.docker_host_info:
+    containers: true
+    containers_all: true
+    containers_filters:
+      label: com.docker.compose.project.working_dir=/srv/read-stack
+  register: read_stack_containers
+  no_log: true
 
-- name: Copy the docker-compose-deploy.yaml file
-  template:
-    src: 'docker-compose-deploy.yaml.j2'
-    dest: '/srv/read-stack/docker-compose-deploy.yaml'
+- name: Inspect the old Compose entrypoint
+  ansible.builtin.stat:
+    path: /srv/read-stack/docker-compose-deploy.yaml
+  register: read_stack_old_compose
 
-- name: Start supabase
-  shell: pnpm supabase start-supabase
-  args:
-    chdir: '/srv/read-stack'
-  when: stage == 'dev'
+- name: Require a regular old Compose file
+  ansible.builtin.assert:
+    that:
+      - read_stack_old_compose.stat.isreg | default(false)
+    fail_msg: 'Inspect the old Compose path before replacing a non-regular file.'
+  when: read_stack_old_compose.stat.exists
 
-- name: Install Loki driver plugin
-  community.docker.docker_plugin:
-    plugin_name: grafana/loki-docker-driver:2.9.1
-    alias: loki
-    state: enable
+- name: Stop legacy containers including background services and disable automatic restart
+  community.docker.docker_container:
+    name: "{{ item.Names[0] | regex_replace('^/', '') }}"
+    state: stopped
+    restart_policy: 'no'
+  loop: '{{ read_stack_containers.containers }}'
+  no_log: true
 
-- name: Migrate Database
-  shell: pnpm migration
-  args:
-    chdir: '/srv/read-stack'
-#
-# - name: Start the application
-#   shell: docker compose --env-file=.env -f docker-compose-deploy.yaml up --build -d
-#   args:
-#     chdir: '/srv/read-stack'
+- name: Disable the old Compose entrypoint while keeping a backup
+  ansible.builtin.copy:
+    dest: /srv/read-stack/docker-compose-deploy.yaml
+    content: "# ReadStack retired. See /srv/read-stack-retired/compose.yaml.\nservices: {}\n"
+    backup: true
+    mode: '0644'
+  when: read_stack_old_compose.stat.exists
+  no_log: true
+
+- name: Create retirement configuration directory
+  ansible.builtin.file:
+    path: /srv/read-stack-retired
+    state: directory
+    mode: '0755'
+
+- name: Copy static retirement assets
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/srv/read-stack-retired/{{ item }}'
+    mode: '0644'
+  loop:
+    - index.html
+    - default.conf
+
+- name: Install retirement Compose definition
+  ansible.builtin.template:
+    src: docker-compose-deploy.yaml.j2
+    dest: /srv/read-stack-retired/compose.yaml
+    mode: '0644'
+
+- name: Start static retirement service
+  community.docker.docker_compose_v2:
+    project_src: /srv/read-stack-retired
+    project_name: read-stack-retired
+    state: present
