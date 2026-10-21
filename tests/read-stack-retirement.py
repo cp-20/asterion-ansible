@@ -42,21 +42,32 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
     old_compose.write_text('services: {old-app: {image: example.invalid/old}}\n')
     original_compose = old_compose.read_text()
     names = {service: KEY + '-' + service for service in ('web', 'server', 'swagger-viewer')}
-    worker, unrelated = KEY + '-worker', KEY + '-unrelated'
-    all_names = [*names.values(), worker, unrelated]
+    worker, unrelated, database = KEY + '-worker', KEY + '-unrelated', KEY + '-database'
+    retirement_collision = KEY + '-collision'
+    all_names = [*names.values(), worker, unrelated, database, retirement_collision]
+    volume = KEY + '-data'
+    run('docker', 'volume', 'create', volume)
 
     # Adapt only host paths, test container names, project name and published ports.
     tasks = (ROLE / 'tasks/main.yaml').read_text()
     tasks = tasks.replace('/srv/read-stack-retired', str(retired)).replace('/srv/read-stack', str(legacy))
+    tasks = tasks.replace("== 'read-stack'", "== '" + KEY + "'")
+    tasks = tasks.replace('com.docker.compose.project=read-stack-retired', 'com.docker.compose.project=' + KEY)
+    tasks = tasks.replace('com.docker.compose.project=read-stack', 'com.docker.compose.project=' + KEY + '-legacy')
+    tasks = tasks.replace("== '" + KEY + "'", "== '" + KEY + "-legacy'")
+    tasks = tasks.replace("['web', 'server', 'swagger-viewer']", repr(list(names.values())))
     for service, name in names.items():
         tasks = tasks.replace('    - ' + service + '\n', '    - ' + name + '\n')
-    tasks = tasks.replace("src: '{{ item }}'", "src: '" + str(ROLE / 'files') + "/{{ item }}'")
+    assets = work / 'assets'
+    shutil.copytree(ROLE / 'files', assets)
+    tasks = tasks.replace("src: '{{ item }}'", "src: '" + str(assets) + "/{{ item }}'")
     template = yaml.safe_load((ROLE / 'templates/docker-compose-deploy.yaml.j2').read_text())
     template['services']['retired']['ports'] = ['127.0.0.1::' + str(p) for p in (3000, 8000, 4173)]
     template_path = work / 'compose-template.yaml'
     template_path.write_text(yaml.safe_dump(template))
     tasks = tasks.replace('src: docker-compose-deploy.yaml.j2', 'src: ' + str(template_path))
     tasks = tasks.replace('project_name: read-stack-retired', 'project_name: ' + KEY)
+    tasks = tasks.replace('      - read-stack-retired\n', '      - ' + KEY + '\n')
     tasks_path = work / 'tasks.yaml'
     tasks_path.write_text(tasks)
     playbook = work / 'playbook.yaml'
@@ -66,29 +77,61 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
                '-e', 'ansible_python_interpreter=' + shutil.which('python'),
                '-e', 'ansible_remote_tmp=' + str(work / 'ansible-tmp')]
 
-    def fixture(name, directory):
+    def fixture(name, directory, service=None, project=KEY + '-legacy'):
+        mounts = ['--mount', 'type=volume,src=' + volume + ',dst=/persist'] if name == names['server'] else []
         run('docker', 'run', '-d', '--name', name, '--restart', 'always',
             '--label', 'com.docker.compose.project.working_dir=' + directory,
-            '--label', 'com.docker.compose.service=' + name,
-            IMAGE, 'sleep', 'infinity')
+            '--label', 'com.docker.compose.project=' + project,
+            '--label', 'com.docker.compose.service=' + (service or name),
+            *mounts, IMAGE, 'sleep', 'infinity')
 
     try:
-        for name in [*names.values(), worker]:
+        for name in names.values():
             fixture(name, str(legacy))
-        fixture(unrelated, '/unrelated')
+        fixture(worker, str(legacy), service=names['server'])
+        fixture(unrelated, str(legacy), project=KEY + '-other')
+        fixture(database, str(legacy), service='database')
+        run('docker', 'exec', names['server'], 'sh', '-c', 'printf saved-articles > /persist/sentinel')
         # A colliding generic name must stop the play before any legacy stop.
         run('docker', 'rm', '-f', names['web'])
-        fixture(names['web'], '/unrelated')
+        fixture(names['web'], str(legacy), project=KEY + '-other')
         rejected = run(*command, check=False)
         assert rejected.returncode != 0, 'ownership conflict unexpectedly accepted'
         assert 'Verify legacy container ownership' in rejected.stdout, rejected.stdout + rejected.stderr
         assert 'unreachable=0' in rejected.stdout and 'failed=1' in rejected.stdout, rejected.stdout
-        assert all(inspect(name)['State']['Running'] for name in all_names)
+        assert all(inspect(name)['State']['Running'] for name in all_names if name != retirement_collision)
         assert old_compose.read_text() == original_compose
         print('PASS ownership conflict aborts before stopping any container')
         run('docker', 'rm', '-f', names['web'])
         fixture(names['web'], str(legacy))
-        original_ids = {name: inspect(name)['Id'] for name in all_names}
+        unknown = run(*command, check=False)
+        assert unknown.returncode != 0
+        assert 'Require every discovered service' in unknown.stdout, unknown.stdout + unknown.stderr
+        assert 'unreachable=0' in unknown.stdout and 'failed=1' in unknown.stdout
+        assert all(inspect(name)['State']['Running'] for name in all_names if name != retirement_collision)
+        assert old_compose.read_text() == original_compose
+        print('PASS unknown service/database aborts before stopping any container or modifying Compose')
+        run('docker', 'rm', '-f', database)
+        fixture(retirement_collision, '/unrelated', service='retired', project=KEY)
+        collision = run(*command, check=False)
+        assert collision.returncode != 0
+        assert 'Verify retirement project ownership' in collision.stdout, collision.stdout + collision.stderr
+        assert all(inspect(name)['State']['Running'] for name in all_names if name != database)
+        assert old_compose.read_text() == original_compose
+        run('docker', 'rm', '-f', retirement_collision)
+        print('PASS retirement project collision aborts before staging or stopping')
+        original_ids = {name: inspect(name)['Id'] for name in all_names if name not in (database, retirement_collision)}
+
+        valid_config = (assets / 'default.conf').read_text()
+        (assets / 'default.conf').write_text('invalid-nginx-directive;\n')
+        invalid = run(*command, check=False)
+        assert invalid.returncode != 0
+        assert 'Validate Nginx without publishing service ports' in invalid.stdout, invalid.stdout + invalid.stderr
+        assert 'unreachable=0' in invalid.stdout and 'failed=1' in invalid.stdout
+        assert all(inspect(name)['State']['Running'] for name in original_ids)
+        assert old_compose.read_text() == original_compose
+        (assets / 'default.conf').write_text(valid_config)
+        print('PASS invalid static configuration aborts while legacy applications keep running')
 
         result = run(*command, check=False)
         assert result.returncode == 0, result.stdout + result.stderr
@@ -99,9 +142,11 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
             assert info['HostConfig']['RestartPolicy']['Name'] == 'no'
         assert inspect(unrelated)['State']['Running']
         assert sentinel.read_text() == 'saved articles must survive'
+        assert run('docker', 'run', '--rm', '--mount', 'type=volume,src=' + volume + ',dst=/persist,readonly',
+                   IMAGE, 'cat', '/persist/sentinel').stdout == 'saved-articles'
         assert yaml.safe_load(old_compose.read_text()) == {'services': {}}
         assert any(p.read_text() == original_compose for p in legacy.glob('docker-compose-deploy.yaml.*~'))
-        print('PASS legacy web/API/Swagger/worker stopped; unrelated container and data preserved; backup retained')
+        print('PASS legacy web/API/Swagger/server replica stopped; other project in same directory and data preserved; backup retained')
 
         def request(port, path, expected, method='GET'):
             binding = run('docker', 'compose', '-p', KEY, '-f', str(retired / 'compose.yaml'),
@@ -128,6 +173,7 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
                         assert 'mailto:contact@cp20.dev' in body
                     else:
                         assert json.loads(body)['message'] == 'ReadStack has ended service.'
+                return body
 
         for port in (3000, 4173):
             for path in ('/', '/saved/article', '/_next/old.js', '/swagger'):
@@ -145,6 +191,15 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
         assert second.returncode == 0, second.stdout + second.stderr
         assert 'changed=0' in second.stdout, second.stdout
         print('PASS second role execution is idempotent')
+        with (assets / 'index.html').open('a') as page:
+            page.write('\n<!-- retirement-update -->\n')
+        update = run(*command, check=False)
+        assert update.returncode == 0, update.stdout + update.stderr
+        assert 'retirement-update' in request(3000, '/', 200)
+        unchanged = run(*command, check=False)
+        assert unchanged.returncode == 0, unchanged.stdout + unchanged.stderr
+        assert 'changed=0' in unchanged.stdout, unchanged.stdout
+        print('PASS static asset update reaches HTTP; following execution is idempotent')
         for name in [*names.values(), worker]:
             run('docker', 'rm', name)
         absent = run(*command, check=False)
@@ -155,3 +210,4 @@ with tempfile.TemporaryDirectory(prefix=KEY) as work:
         run('docker', 'compose', '-p', KEY, '-f', str(retired / 'compose.yaml'), 'down', check=False)
         for name in all_names:
             run('docker', 'rm', '-f', name, check=False)
+        run('docker', 'volume', 'rm', volume, check=False)
