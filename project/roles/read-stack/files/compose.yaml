@@ -1,6 +1,6 @@
 services:
   retired:
-    image: nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+    image: nginx:1.30-alpine@sha256:3bc3836dc0be3b811f238210360bf8e7ca8a2d0effdae46160bf1f3578710051
     restart: unless-stopped
     ports:
     - 3000:3000
